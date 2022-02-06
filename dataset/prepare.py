@@ -77,7 +77,7 @@ class AMASS:
 		self.dirs = os.listdir(self.amass_path)
 		if self.whitelist is not None:
 			self.dirs = [os.path.join(self.amass_path, i) for i in self.dirs if i in self.whitelist]
-		self.ds = [load_file(c, self.model_path) for c in self.dirs]
+		self.ds = [load_file(c, np.load(self.model_path)) for c in self.dirs]
 	
 	def get_fullbody(self, do_framerate_adjust=False):
 		def so(a, b):

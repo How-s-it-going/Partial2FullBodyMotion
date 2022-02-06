@@ -8,8 +8,11 @@ def nest_map(func, depth, num_parallel_calls=None, deterministic=None):
 	return inner if depth == 0 else nest_map(inner, depth-1, num_parallel_calls, deterministic)
 
 @tf.function
-def apply_trans(trans, J_tree: np.ndarray):
-	return tf.concat([trans[:1], trans[1:] @ tf.gather_nd(trans, tf.expand_dims(J_tree[0,1:22], axis=-1))], axis=-3)
+def apply_trans(trans, J_tree):
+	# return tf.concat([trans[:1], trans[1:] @ tf.gather_nd(trans, tf.expand_dims(J_tree[0,1:22], axis=-1))], axis=-3)
+	for i in range(1, 22):
+		trans = tf.tensor_scatter_nd_update(trans, [[i]], [trans[i] @ trans[J_tree[0, i]]])
+	return trans
 	
 @tf.function
 def fit_shape_to(tensor, shape):
@@ -20,13 +23,12 @@ def fit_shape_to(tensor, shape):
 
 @tf.function
 def TSO(rot_vectors: np.ndarray):
-	batch_shape = rot_vectors.shape[:-1]
 	angle = tf.norm(rot_vectors, axis=-1, keepdims=True)
-	vec = rot_vectors / angle
+	vec = rot_vectors / (angle + 1e-10)
 	x, y, z = tf.unstack(vec, axis=-1)
 	zero = tf.zeros_like(x)
 	K = tf.stack([zero, -z, y,  z, zero, -x,  -y, x, zero], axis=-1)
-	K = tf.reshape(K, [*batch_shape, 3, 3])
+	K = tf.reshape(K, [-1, 3, 3])
 	I = tf.eye(3)
 	return I + K*tf.expand_dims(tf.sin(angle), axis=-1) \
 		+ (K @ K)*(1 - tf.expand_dims(tf.cos(angle), axis=-1))
@@ -60,7 +62,7 @@ def get_force_rot(rot: tf.Tensor):
 	R = tf.pad(R, [[0,0],[0,1],[0,1]])
 	return R + tf.scatter_nd([[2,2]], [1.], [3,3])
 
-def load_file(dir, model_path):
+def _load_file(dir, model_path):
 	ds = glob.glob(f'{dir}/**/*_poses.npz', recursive=True)
 	npz = [dict(np.load(f)) for f in ds]
 	model = np.load(model_path)
@@ -75,6 +77,31 @@ def load_file(dir, model_path):
 	dic = tf.data.Dataset.from_tensor_slices(
 		{'joint': j, 'framerate': [n['mocap_framerate'].astype(np.float32) for n in npz]})
 	return tf.data.Dataset.zip((ds, dic))
+
+def load_file(dir, model):
+	ds = tf.data.Dataset.list_files(f'{dir}/**/*_poses.npz')
+	reg = model['J_regressor'].astype(np.float32)
+	sha = model['shapedirs'].astype(np.float32)
+	table = tf.expand_dims(model['kintree_table'][0, 1:22], axis=-1)
+
+	def inner(f):
+		def load_npz(i):
+			n = np.load(i)
+			return (
+				n['trans'].astype(np.float32), 
+				n['poses'].astype(np.float32), 
+				n['betas'].astype(np.float32),
+				n['mocap_framerate'].astype(np.float32))
+
+		t, p, b, m = tf.numpy_function(load_npz, [f], [tf.float32, tf.float32, tf.float32, tf.float32])
+		
+		ds =tf.data.Dataset.from_tensor_slices((t, p))
+		j = get_base_joint(reg, sha, b)
+		j = tf.concat([j[0:1], j[1:22] - tf.gather_nd(j, table)], axis=-2)
+		dic = {'joint': j, 'framerate': m}
+		return (ds, dic)
+
+	return ds.map(inner)
 
 @tf.function
 def adjust_framerate(ds, dic, framerate):
