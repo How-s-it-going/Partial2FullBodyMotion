@@ -48,9 +48,9 @@ def blend_shapes(betas, shape_dirs):
 	return tf.einsum('bl,mkl->bmk', betas, shape_dirs)
 
 @tf.function
-def get_base_joint(regressor, shape_dirs, betas):
+def get_base_joint(v_template, regressor, shape_dirs, betas):
 	return tf.squeeze(vertices2joints(regressor, 
-		blend_shapes(betas if tf.rank(betas) > 1 else tf.expand_dims(betas, 0), shape_dirs)))
+		v_template + blend_shapes(betas if tf.rank(betas) > 1 else tf.expand_dims(betas, 0), shape_dirs)))
 
 @tf.function
 def get_force_rot(rot: tf.Tensor):
@@ -70,7 +70,7 @@ def _load_file(dir, model_path):
 		[tf.data.Dataset.from_tensor_slices(
 			(n['trans'].astype(np.float32), n['poses'].astype(np.float32))) for n in npz])
 
-	j = [get_base_joint(model['J_regressor'].astype(np.float32), 
+	j = [get_base_joint(model['v_template'].astype(np.float32), model['J_regressor'].astype(np.float32), 
 		model['shapedirs'].astype(np.float32), n['betas'].astype(np.float32)) for n in npz]
 	j = [tf.concat([i[0:1], i[1:22] - tf.gather_nd(i, tf.expand_dims(model['kintree_table'][0, 1:22], axis=-1))], axis=-2) for i in j]	
 
@@ -82,6 +82,7 @@ def load_file(dir, model):
 	ds = tf.data.Dataset.list_files(f'{dir}/**/*_poses.npz')
 	reg = model['J_regressor'].astype(np.float32)
 	sha = model['shapedirs'].astype(np.float32)
+	temp = model['v_template'].astype(np.float32)
 	table = tf.expand_dims(model['kintree_table'][0, 1:22], axis=-1)
 
 	def inner(f):
@@ -96,7 +97,7 @@ def load_file(dir, model):
 		t, p, b, m = tf.numpy_function(load_npz, [f], [tf.float32, tf.float32, tf.float32, tf.float32])
 		
 		ds =tf.data.Dataset.from_tensor_slices((t, p))
-		j = get_base_joint(reg, sha, b)
+		j = get_base_joint(temp, reg, sha, b)
 		j = tf.concat([j[0:1], j[1:22] - tf.gather_nd(j, table)], axis=-2)
 		dic = {'joint': j, 'framerate': m}
 		return (ds, dic)
