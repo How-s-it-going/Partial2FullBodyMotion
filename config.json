@@ -1,0 +1,8 @@
+{
+	"dataset": {
+		"amass_path": "AMASS/",
+		"model_filepath": "SMPLHModels/neutral/model.npz",
+		"whitelist": ["KIT", "MPI_HDM05", "CMU"],
+		"framerate_adjust": 30
+	}
+}
