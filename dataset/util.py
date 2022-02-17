@@ -1,4 +1,5 @@
 import glob
+import random
 import tensorflow as tf
 import numpy as np
 
@@ -8,10 +9,18 @@ def nest_map(func, depth, num_parallel_calls=None, deterministic=None):
 	return inner if depth == 0 else nest_map(inner, depth-1, num_parallel_calls, deterministic)
 
 @tf.function
-def apply_trans(trans, J_tree):
+def apply_trans(trans, J_tree, batch_rank=0):
 	# return tf.concat([trans[:1], trans[1:] @ tf.gather_nd(trans, tf.expand_dims(J_tree[0,1:22], axis=-1))], axis=-3)
+	if batch_rank != 0:
+		perm = tf.range(tf.rank(trans))
+		perm = tf.tensor_scatter_nd_update(perm, [[0], [batch_rank]], [batch_rank, 0])
+		trans = tf.transpose(trans, perm)
+
 	for i in range(1, 22):
 		trans = tf.tensor_scatter_nd_update(trans, [[i]], [trans[i] @ trans[J_tree[0, i]]])
+
+	if batch_rank != 0:
+		trans = tf.transpose(trans, perm)
 	return trans
 	
 @tf.function
@@ -27,17 +36,22 @@ def TSO(rot_vectors: np.ndarray):
 	vec = rot_vectors / (angle + 1e-10)
 	x, y, z = tf.unstack(vec, axis=-1)
 	zero = tf.zeros_like(x)
-	K = tf.stack([zero, -z, y,  z, zero, -x,  -y, x, zero], axis=-1)
-	K = tf.reshape(K, [-1, 3, 3])
+	A = tf.stack([zero, -z, y], axis=-1)
+	B = tf.stack([z, zero, -x], axis=-1)
+	C = tf.stack([-y, x, zero], axis=-1)
+	K = tf.stack([A, B, C], axis=-1)
 	I = tf.eye(3)
 	return I + K*tf.expand_dims(tf.sin(angle), axis=-1) \
 		+ (K @ K)*(1 - tf.expand_dims(tf.cos(angle), axis=-1))
 
 @tf.function
 def TSE(rot, trans):
-	pad = tf.tile([[0, 0]], [tf.rank(rot), 1])
-	pad = pad + tf.scatter_nd([[tf.rank(rot)-2, 1]], [1], pad.shape)
-	return tf.concat([tf.pad(rot, pad), tf.pad(tf.expand_dims(trans, axis=-1), pad, constant_values=1)], axis=-1)
+	tpad = tf.scatter_nd([[1, 1]], [1], [3,2])
+	rpad = tf.concat([tf.zeros((tf.rank(rot)-3, 2), tf.int32), tpad], 0)
+	trans = tf.pad(tf.expand_dims(trans, axis=-1), tpad, constant_values=1)
+	trans = tf.reshape(trans, tf.concat([tf.ones([tf.rank(rot)-3], tf.int32), [-1, 4, 1]], 0))
+	trans = tf.tile(trans, tf.concat([tf.shape(rot)[:-3], tf.ones([3], tf.int32)], 0))
+	return tf.concat([tf.pad(rot, rpad), trans], axis=-1)
 
 @tf.function
 def vertices2joints(regressor, vertices):
@@ -79,7 +93,12 @@ def _load_file(dir, model_path):
 	return tf.data.Dataset.zip((ds, dic))
 
 def load_file(dir, model):
-	ds = tf.data.Dataset.list_files(f'{dir}/**/*_poses.npz')
+	ds = tf.data.Dataset.list_files(f'{dir}/**/*_poses.npz', shuffle=True)
+	# file_list = glob.glob(f'{dir}/**/*_poses.npz', recursive=True)
+	# random.shuffle(file_list)
+	# ds = tf.data.Dataset.from_tensor_slices(file_list)
+	# ds = ds.apply(tf.data.experimental.assert_cardinality(len(file_list)))
+
 	reg = model['J_regressor'].astype(np.float32)
 	sha = model['shapedirs'].astype(np.float32)
 	temp = model['v_template'].astype(np.float32)
@@ -89,17 +108,19 @@ def load_file(dir, model):
 		def load_npz(i):
 			n = np.load(i)
 			return (
-				n['trans'].astype(np.float32), 
-				n['poses'].astype(np.float32), 
+				# n['trans'].astype(np.float32),
+				n['poses'].astype(np.float32),
 				n['betas'].astype(np.float32),
-				n['mocap_framerate'].astype(np.float32))
+				n['mocap_framerate'].astype(np.float32),
+				n['trans'].shape[0])
 
-		t, p, b, m = tf.numpy_function(load_npz, [f], [tf.float32, tf.float32, tf.float32, tf.float32])
+		# t, p, b, m, f = tf.numpy_function(load_npz, [f], [tf.float32, tf.float32, tf.float32, tf.float32, tf.int32])
+		p, b, m, f = tf.numpy_function(load_npz, [f], [tf.float32, tf.float32, tf.float32, tf.int32])
 		
-		ds =tf.data.Dataset.from_tensor_slices((t, p))
+		ds =tf.data.Dataset.from_tensor_slices(p)
 		j = get_base_joint(temp, reg, sha, b)
 		j = tf.concat([j[0:1], j[1:22] - tf.gather_nd(j, table)], axis=-2)
-		dic = {'joint': j, 'framerate': m}
+		dic = {'joint': j, 'framerate': m, 'frames': f}
 		return (ds, dic)
 
 	return ds.map(inner)
@@ -107,5 +128,7 @@ def load_file(dir, model):
 @tf.function
 def adjust_framerate(ds, dic, framerate):
 	f = dic['framerate']
+	di = dic.copy()
 	step = tf.maximum(tf.constant(1, tf.int64), tf.cast(tf.round(f/framerate), tf.int64))
-	return ds.shard(step, 0), dic
+	di['frames'] = tf.math.ceil(tf.cast(dic['frames'], tf.int64)/step)
+	return ds.shard(step, 0), di

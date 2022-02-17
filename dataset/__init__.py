@@ -1,3 +1,3 @@
 
-from dataset.util import *
-from dataset.prepare import *
+from dataset.util import apply_trans
+from dataset.prepare import AMASS
