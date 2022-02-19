@@ -2,7 +2,7 @@ import tensorflow as tf
 import tensorflow.keras as keras
 layers = keras.layers
 
-class LinerResBlock(keras.Model):
+class LinearResBlock(keras.Model):
 	def __init__(self, units=256, activation=None, normalization=None, **kwargs):
 		def f():
 			return normalization() if normalization else layers.LayerNormalization()
