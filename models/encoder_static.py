@@ -6,7 +6,7 @@ from models.block import LinearResBlock
 
 class StaticEncoder(Model):
     def __init__(self, res_num=3, d=30, activation=None, **kwargs):
-        super().__init__(name='Encoder_hh_Static')
+        super().__init__(name='StaticEncoder')
         self.activation = activation or layers.LeakyReLU()
         self.pre = layers.Dense(256)
         self.resblocks = [LinearResBlock(256, self.activation, **kwargs) for _ in range(res_num)]
