@@ -22,7 +22,7 @@ class SequenceEncoder(keras.Model):
 			x = l(x)
 		x = self.activation(x)
 
-		x = layers.Flatten(x)
+		x = layers.Flatten()(x)
 		x = self.norm(x)
 		
 		for l in self.lires:
