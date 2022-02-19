@@ -1,7 +1,7 @@
 import tensorflow as tf
 import tensorflow.keras as keras
 
-from models.block import LinerResBlock
+from models.block import LinearResBlock
 layers = keras.layers
 
 class Decoder(keras.Model):
@@ -9,7 +9,7 @@ class Decoder(keras.Model):
 		super().__init__(name='Decoder')
 		self.activation = activation or layers.LeakyReLU()
 		self.pre = layers.Dense(space_dim, activation=self.activation)
-		self.resblocks = [LinerResBlock(space_dim, self.activation, **kwargs) for _ in range(res_num)]
+		self.resblocks = [LinearResBlock(space_dim, self.activation, **kwargs) for _ in range(res_num)]
 		self.post = layers.Dense(22*6)
 
 	def call(self, z):
