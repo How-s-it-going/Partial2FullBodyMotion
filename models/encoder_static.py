@@ -19,5 +19,6 @@ class StaticEncoder(Model):
             x = b(x)
         x = self.activation(x)
         x = self.post(x)
+        mu, sigma = tf.split(x, num_or_size_splits=2, axis=-1)
 
-        return x
+        return mu, sigma
