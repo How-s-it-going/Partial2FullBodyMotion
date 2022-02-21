@@ -9,8 +9,9 @@ class SequenceEncoder(keras.Model):
 	def __init__(self, flames, res_num, d, space_dim=256, activation=None, **kwargs):
 		super().__init__(name='SequenceEncoder')
 		self.activation = activation or layers.LeakyReLU()
-		self.lin = [layers.Dense(128, self.activation, ) for _ in range(flames)]
-		self.cores = [ConvResBlock(space_dim, activation=self.activation) for _ in range(res_num)]
+		self.lin = [layers.Dense(128, self.activation) for _ in range(flames)]
+		self.cores = [ConvResBlock(128, activation=self.activation) for _ in range(res_num)]
+		self.pre = layers.Dense(256, self.activation)
 		self.lires = [LinearResBlock(space_dim, activation=self.activation) for _ in range(res_num)]
 		self.norm = layers.LayerNormalization()
 		self.mu, self.sig = layers.Dense(d), layers.Dense(d)
@@ -25,6 +26,7 @@ class SequenceEncoder(keras.Model):
 		x = layers.Flatten()(x)
 		x = self.norm(x)
 		
+		x = self.pre(x)
 		for l in self.lires:
 			x = l(x)
 		x = self.activation(x)

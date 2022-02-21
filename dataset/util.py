@@ -93,7 +93,8 @@ def _load_file(dir, model_path):
 	return tf.data.Dataset.zip((ds, dic))
 
 def load_file(dir, model):
-	ds = tf.data.Dataset.list_files(f'{dir}/**/*_poses.npz', shuffle=True)
+	ds = tf.data.Dataset.list_files(f'{dir}/**/*_poses.npz', shuffle=False)
+	ds = ds.shuffle(1000, reshuffle_each_iteration=False)
 	# file_list = glob.glob(f'{dir}/**/*_poses.npz', recursive=True)
 	# random.shuffle(file_list)
 	# ds = tf.data.Dataset.from_tensor_slices(file_list)

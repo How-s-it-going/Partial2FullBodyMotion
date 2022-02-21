@@ -1,7 +1,7 @@
 import tensorflow as tf
-import tensorflow.keras as keras
 
 from models.block import LinearResBlock
+keras = tf.keras
 layers = keras.layers
 
 class Decoder(keras.Model):

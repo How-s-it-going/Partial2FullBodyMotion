@@ -23,7 +23,7 @@ class AMASS:
 
 	def get_fullbody(self, do_framerate_adjust=False):
 		def so(f):
-			t = TSO(tf.reshape(f[:66], (-1, 3)))
+			t = TSO(tf.reshape(f[:66], (22, 3)))
 			t = t @ get_force_rot(t)
 			return t
 
@@ -38,11 +38,11 @@ class AMASS:
 			trl = ds.skip(num)
 			tel = ds.take(num)
 			tr, te = map(lambda d: d.flat_map(lambda a, b: a.map(lambda f: TSE(f, b['joint']))), (trl, tel))
-			t = lambda a, b: a
-			return (tr, trl.flat_map(t), te, tel.flat_map(t))
+			return (tr, tr, te, te)
 
 		ds = [inner(d) for d in self.ds]
 		(tr, trl, te, tel) = conbine(ds)
+		tr, te = map(lambda d: d.map(lambda b: apply_trans(b, self.model['kintree_table'])), (tr, te))
 		return (tr, trl), (te, tel)
 
 	def get_hh_sequence(self):
@@ -63,11 +63,11 @@ class AMASS:
 			trl = ds.skip(num).map(t(16))
 			tel = ds.take(num).map(t(64))
 			trl, tel = map(lambda d: d.map(lambda a, b: (a.map(so), b)), (trl, tel))
-			tr, te = map(lambda d: d.flat_map(lambda a, b: a.map(lambda f: TSE(f, b['joint']))), (trl, tel))
-			ds = map(lambda d: d.map(lambda b: apply_trans(b, self.model['kintree_table'], 1)), (tr, te))
+			trl, tel = map(lambda d: d.flat_map(lambda a, b: a.map(lambda f: TSE(f, b['joint']))), (trl, tel))
+			ds = map(lambda d: d.map(lambda b: apply_trans(b, self.model['kintree_table'], 1)), (trl, tel))
 			tr, te = map(lambda d: d.map(lambda b: tf.gather(b, [15, 20, 21], axis=1)), ds)
-			t = lambda a, b: a.map(lambda fs: fs[-1])
-			return (tr, trl.flat_map(t), te, tel.flat_map(t))
+			t = lambda fs: fs[-1]
+			return (tr, trl.map(t), te, tel.map(t))
 
 		ds = [inner(d) for d in self.ds]
 		(tr, trl, te, tel) = conbine(ds)
@@ -76,6 +76,5 @@ class AMASS:
 	def get_hh(self, do_framerate_adjust=False):
 		# [15, 20, 21] (head, right hand, left hand)
 		(tr, trl), (te, tel) = self.get_fullbody(do_framerate_adjust)
-		ds = map(lambda d: d.map(lambda b: apply_trans(b, self.model['kintree_table'])), (tr, te))
-		tr, te = map(lambda d: d.map(lambda b: tf.gather(b, [15, 20, 21])), ds)
+		tr, te = map(lambda d: d.map(lambda b: tf.gather(b, [15, 20, 21])), (tr, te))
 		return (tr, trl), (te, tel)
