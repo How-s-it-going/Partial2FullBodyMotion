@@ -113,10 +113,10 @@ def load_file(dir, model):
 				n['poses'].astype(np.float32),
 				n['betas'].astype(np.float32),
 				n['mocap_framerate'].astype(np.float32),
-				n['trans'].shape[0])
+				np.array(n['trans'].shape[0], np.int64))
 
 		# t, p, b, m, f = tf.numpy_function(load_npz, [f], [tf.float32, tf.float32, tf.float32, tf.float32, tf.int32])
-		p, b, m, f = tf.numpy_function(load_npz, [f], [tf.float32, tf.float32, tf.float32, tf.int32])
+		p, b, m, f = tf.numpy_function(load_npz, [f], [tf.float32, tf.float32, tf.float32, tf.int64])
 		
 		ds =tf.data.Dataset.from_tensor_slices(p)
 		j = get_base_joint(temp, reg, sha, b)
