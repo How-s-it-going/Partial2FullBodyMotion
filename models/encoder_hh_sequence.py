@@ -16,7 +16,7 @@ class SequenceEncoder(keras.Model):
 		self.mu, self.sig = layers.Dense(d), layers.Dense(d)
 
 	def call(self, input):
-		x = tf.stack([l(input[:, i]) for i, l in enumerate(self.lin)], -2)
+		x = tf.stack([l(layers.Flatten()(input[:, i])) for i, l in enumerate(self.lin)], -2)
 
 		for l in self.cores:
 			x = l(x)

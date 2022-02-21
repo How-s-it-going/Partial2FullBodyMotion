@@ -13,7 +13,8 @@ class StaticEncoder(Model):
         self.post = layers.Dense(2 * d)
 
     def call(self, inputs, training=None, mask=None):
-        x = self.pre(inputs)
+        x = layers.Flatten()(inputs)
+        x = self.pre(x)
         x = self.activation(x)
         for b in self.resblocks:
             x = b(x)
