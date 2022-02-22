@@ -1,4 +1,6 @@
 # Full-Body Motion from a Single Head-Mounted Device
+![License](https://img.shields.io/badge/license-MIT-green)
+
 Generates articulated poses of a human skeleton based on noisy streams of head and hand pose.
 
 ![Untitled](https://user-images.githubusercontent.com/18856994/155125242-84633290-812e-4a7e-921c-298102c397fa.png)
