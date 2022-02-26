@@ -7,11 +7,11 @@ import glob
 from dataset.util import *
 
 def conbine(dss):
-	return reduce(lambda a, b: (i.concatnate(j) for i, j in zip(a, b)), dss)
+	return reduce(lambda a, b: (i.concatenate(j) for i, j in zip(a, b)), dss)
 
 class AMASS:
 	def __init__(self, amass_path: str, model_path: str,
-		whitelist: list[str]=None, framerate_adjust: float=None):
+		whitelist=None, framerate_adjust: float=None):
 		self.amass_path = amass_path
 		self.whitelist = whitelist
 		self.framerate_adjust = framerate_adjust
