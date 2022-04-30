@@ -1,0 +1,2 @@
+model_checkpoint_path: "hh_static"
+all_model_checkpoint_paths: "hh_static"
